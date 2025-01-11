@@ -7,12 +7,11 @@ import easyocr
 from pathlib import Path
 from ultralytics import YOLO
 import torch
+from uuid import uuid4
 
 
 class AnimeVideoAnalyzer:
-    def __init__(self, output_dir="output"):
-        self.output_dir = output_dir
-        os.makedirs(self.output_dir, exist_ok=True)
+    def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"使用設備: {self.device}")
         print("載入 OCR 模型...")
@@ -113,7 +112,8 @@ class AnimeVideoAnalyzer:
     def process_text(self, text: str):
         return text.strip().replace('"', "").replace("'", "")
 
-    def process_video(self, video_path, csv_name):
+    def process_video(self, video_path, result_file_name, output_dir="output"):
+        os.makedirs(output_dir, exist_ok=True)
         video_info = self.get_video_info(video_path)
 
         video = cv2.VideoCapture(video_path)
@@ -136,7 +136,8 @@ class AnimeVideoAnalyzer:
                     if current_text.strip():
                         current_text = self.process_text(current_text)
                         emotion = self.analyze_emotion(current_text)
-                        frame_filename = f"{current_second:.1f}s.jpg"
+                        small_id = str(uuid4())[:8]
+                        frame_filename = f"{small_id}-{current_second:.1f}s.jpg"
                         results.append(
                             {
                                 "frame": frame_count,
@@ -147,7 +148,7 @@ class AnimeVideoAnalyzer:
                                 "frame_filename": frame_filename,
                             }
                         )
-                        cv2.imwrite(Path(self.output_dir, frame_filename), frame)
+                        cv2.imwrite(Path(output_dir, frame_filename), frame)
                 frame_count += 1
                 pbar.update(1)
         finally:
@@ -158,9 +159,10 @@ class AnimeVideoAnalyzer:
         if results:
             df = pd.DataFrame(results)
             df.to_csv(
-                Path(self.output_dir, csv_name), index=False, encoding="utf-8-sig"
+                Path(output_dir, result_file_name + ".csv"), index=False, encoding="utf-8-sig"
             )
-            print(f"\n分析結果已保存到: {Path(self.output_dir, csv_name)}")
+            df.to_json(Path(output_dir, result_file_name + ".json"), orient="records", force_ascii=False)
+            print(f"\n分析結果已保存到: {Path(output_dir, result_file_name)}")
 
         return {
             "total_frames": video_info["total_frames"],
@@ -173,9 +175,7 @@ class AnimeVideoAnalyzer:
 if __name__ == "__main__":
     output_dir = Path("output")
     analyzer = AnimeVideoAnalyzer(output_dir=output_dir)
-    video_path = r""
-
+    video_path = r"C:\Users\whitecloud\Downloads\aniGamerPlus_v24.6_windows_64bit\bangumi\BanG Dream! Ave Mujica\BanG Dream! Ave Mujica[1][720P].mp4"
     csv_name = "anime_subtitles_with_tags.csv"
-    results = analyzer.process_video(video_path=video_path, csv_name=csv_name)
-
+    results = analyzer.process_video(video_path=video_path, result_file_name=csv_name)
     print("處理完成！結果已保存到:", output_dir)
