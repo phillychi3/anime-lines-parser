@@ -22,12 +22,12 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "easyocr" },
-    { name = "opencv-python" },
-    { name = "pandas" },
-    { name = "requests" },
-    { name = "transformers" },
-    { name = "ultralytics" },
+    { name = "easyocr", specifier = ">=1.7.2" },
+    { name = "opencv-python", specifier = ">=4.10.0.84" },
+    { name = "pandas", specifier = ">=2.2.3" },
+    { name = "requests", specifier = ">=2.32.3" },
+    { name = "transformers", specifier = ">=4.47.1" },
+    { name = "ultralytics", specifier = ">=8.3.59" },
 ]
 
 [[package]]

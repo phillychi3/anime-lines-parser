@@ -148,7 +148,11 @@ class AnimeVideoAnalyzer:
                                 "frame_filename": frame_filename,
                             }
                         )
-                        cv2.imwrite(Path(output_dir, frame_filename), frame)
+                        cv2.imwrite(
+                            Path(output_dir, frame_filename),
+                            frame,
+                            [int(cv2.IMWRITE_JPEG_QUALITY), 90],
+                        )
                 frame_count += 1
                 pbar.update(1)
         finally:
@@ -159,9 +163,15 @@ class AnimeVideoAnalyzer:
         if results:
             df = pd.DataFrame(results)
             df.to_csv(
-                Path(output_dir, result_file_name + ".csv"), index=False, encoding="utf-8-sig"
+                Path(output_dir, result_file_name + ".csv"),
+                index=False,
+                encoding="utf-8-sig",
             )
-            df.to_json(Path(output_dir, result_file_name + ".json"), orient="records", force_ascii=False)
+            df.to_json(
+                Path(output_dir, result_file_name + ".json"),
+                orient="records",
+                force_ascii=False,
+            )
             print(f"\n分析結果已保存到: {Path(output_dir, result_file_name)}")
 
         return {
