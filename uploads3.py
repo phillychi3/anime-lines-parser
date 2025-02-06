@@ -1,26 +1,29 @@
 import os
 from pathlib import Path
 from tqdm import tqdm
-from r2client.R2Client import R2Client as r2
+import boto3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class CloudflareR2Uploader:
     def __init__(self, account_id, access_key_id, secret_access_key, max_workers=4):
-        self.client = r2(
-            access_key=access_key_id,
-            secret_key=secret_access_key,
-            endpoint=f"https://{account_id}.r2.cloudflarestorage.com",
+        self.client = boto3.client(
+            "s3",
+            endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
+            region_name="auto",
         )
         self.max_workers = max_workers
 
     def get_existing_files(self, bucket_name):
         try:
-            files = self.client.list_files(bucket_name)
+            paginator = self.client.get_paginator("list_objects_v2")
             filelist = []
-            for key in files:
-                for file in files[key]:
-                    filelist.append(file)
+            for page in paginator.paginate(Bucket=bucket_name):
+                if "Contents" in page:
+                    for obj in page["Contents"]:
+                        filelist.append(obj["Key"])
             return set(filelist)
         except Exception as e:
             print(f"Error: {str(e)}")
@@ -28,7 +31,7 @@ class CloudflareR2Uploader:
 
     def upload_file(self, bucket_name, file_path, s3_key):
         try:
-            self.client.upload_file(bucket_name, file_path, s3_key)
+            self.client.upload_file(file_path, bucket_name, s3_key)
             return True, s3_key
         except Exception as e:
             return False, f"Error: {s3_key} - {str(e)}"
@@ -41,9 +44,8 @@ class CloudflareR2Uploader:
                 file_path = os.path.join(root, file)
                 relative_path = os.path.relpath(file_path, local_dir)
                 s3_key = f"{prefix}/{relative_path}".replace("\\", "/")
-                filename = Path(file_path).name
 
-                if filename not in existing_files:
+                if s3_key not in existing_files:
                     all_files.append((file_path, s3_key))
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
