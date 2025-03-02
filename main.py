@@ -3,7 +3,7 @@ import cv2
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import pandas as pd
-import easyocr
+from paddleocr import PaddleOCR
 from pathlib import Path
 from ultralytics import YOLO
 import torch
@@ -14,8 +14,10 @@ class AnimeVideoAnalyzer:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"使用設備: {self.device}")
-        print("載入 OCR 模型...")
-        self.reader = easyocr.Reader(["ch_tra", "en"])
+        print("載入 PaddleOCR 模型...")
+        self.reader = PaddleOCR(
+            use_angle_cls=True, lang="ch", use_gpu=torch.cuda.is_available()
+        )
         print("載入情緒分析模型...")
         self.emotion_tokenizer = AutoTokenizer.from_pretrained(
             "Johnson8187/Chinese-Emotion-Small"
@@ -130,9 +132,28 @@ class AnimeVideoAnalyzer:
                     current_second = frame_count / video_info["fps"]
                     subtitle_region = self.extract_subtitle_region(frame)
                     processed_region = self.preprocess_frame(subtitle_region)
-                    ocr_results = self.reader.readtext(processed_region)
+
+                    ocr_result = self.reader.ocr(processed_region, cls=True)
+                    current_text = ""
+
+                    if ocr_result:
+                        current_text = ""
+                        try:
+                            if ocr_result[0] is not None:
+                                text_results = []
+                                for line in ocr_result[0]:
+                                    if (
+                                        line
+                                        and len(line) > 1
+                                        and line[1]
+                                        and len(line[1]) > 0
+                                    ):
+                                        text_results.append(line[1][0])
+                                current_text = " ".join(text_results)
+                        except (IndexError, TypeError) as e:
+                            print(f"處理 OCR 結果出錯: {e}")
+
                     objects = self.detect_objects(frame)
-                    current_text = " ".join([result[1] for result in ocr_results])
                     if current_text.strip():
                         current_text = self.process_text(current_text)
                         emotion = self.analyze_emotion(current_text)
@@ -184,8 +205,10 @@ class AnimeVideoAnalyzer:
 
 if __name__ == "__main__":
     output_dir = Path("output")
-    analyzer = AnimeVideoAnalyzer(output_dir=output_dir)
+    analyzer = AnimeVideoAnalyzer()
     video_path = r"C:\Users\whitecloud\Downloads\aniGamerPlus_v24.6_windows_64bit\bangumi\BanG Dream! Ave Mujica\BanG Dream! Ave Mujica[1][720P].mp4"
-    csv_name = "anime_subtitles_with_tags.csv"
-    results = analyzer.process_video(video_path=video_path, result_file_name=csv_name)
+    csv_name = "anime_subtitles_with_tags"
+    results = analyzer.process_video(
+        video_path=video_path, result_file_name=csv_name, output_dir=output_dir
+    )
     print("處理完成！結果已保存到:", output_dir)
